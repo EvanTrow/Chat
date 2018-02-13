@@ -16,11 +16,14 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Base64;
+import java.util.Base64.Encoder;
 
 public class ClientGUI extends Application {
     public static void main(String[] args) {
@@ -54,8 +57,8 @@ public class ClientGUI extends Application {
     		Label pw = new Label("Password:");
     		grid.add(pw, 0, 2);
 
-    		PasswordField pwBox = new PasswordField();
-    		grid.add(pwBox, 1, 2);
+    		PasswordField passField = new PasswordField();
+    		grid.add(passField, 1, 2);
     		
     		Button SignInbtn = new Button("Sign in");
     		HBox hbBtn = new HBox(10);
@@ -74,24 +77,33 @@ public class ClientGUI extends Application {
 	        		try{
 	        			Class.forName("com.mysql.jdbc.Driver");
 
-	        			Connection con=DriverManager.getConnection("jdbc:mysql://trowlink.com:3306/JavaChat","chat","7xsVuPeF1rCQOeo2");
+	        			Connection con=DriverManager.getConnection("jdbc:mysql://trowlink.com:3306/JavaChat?autoReconnect=true&useSSL=false","chat","7xsVuPeF1rCQOeo2");
 	        			//here sonoo is the database name, root is the username and root is the password
 	        			Statement stmt=con.createStatement();
-
-	        			ResultSet rs=stmt.executeQuery("select * from users");
-
-	        			while(rs.next())
-	        			System.out.println(rs.getInt(1)+"  "+rs.getString(2)+"  "+rs.getString(3));
-
-        				actiontarget.setFill(Color.BLUE);
-        				actiontarget.setText("User: "+rs.getString(2));
-
+	        			
+	        	        final byte[] authBytes = passField.getText().getBytes(StandardCharsets.UTF_8);
+	        	        final String encoded = Base64.getEncoder().encodeToString(authBytes);
+	        			
+	        			ResultSet result = stmt.executeQuery("select * from users where user='"+userTextField.getText()+"' AND pass='"+encoded+"'");
+	        			if(result.next()){
+	        				System.out.println(result.getInt(1)+"  "+result.getString(2)+"  '"+result.getString(3)+"' = '"+encoded+"'");
+	        				actiontarget.setFill(Color.BLUE);
+	        				actiontarget.setText("Login Successful!");
+        			    } else {
+        					actiontarget.setFill(Color.FIREBRICK);
+	        				actiontarget.setText("Invalid login.");
+        				}
 	        			con.close();
 
         			}catch(Exception e1){ 
-        				//System.out.println(e1);
-        				actiontarget.setFill(Color.FIREBRICK);
-        				actiontarget.setText("Error while processing request.");
+        				System.out.println(e1.getMessage());
+        				if(e1.getMessage().contains("empty result set")) {
+            				actiontarget.setFill(Color.FIREBRICK);
+            				actiontarget.setText("Invalid login.");
+        				} else {
+            				actiontarget.setFill(Color.FIREBRICK);
+            				actiontarget.setText("Error while processing request.");
+        				}
     				}
             }
         });
