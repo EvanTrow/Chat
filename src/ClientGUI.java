@@ -26,11 +26,8 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Base64;
 import java.util.Base64.Encoder;
-
 import javax.swing.JTextField;
-
 import org.w3c.dom.css.ElementCSSInlineStyle;
-
 import java.util.Hashtable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -49,7 +46,6 @@ public class ClientGUI extends Application {
     void cleanup() {
         // stop, reset
     }
-    
     
     // show server select dialog
     @Override
