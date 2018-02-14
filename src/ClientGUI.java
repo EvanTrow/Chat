@@ -7,6 +7,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -16,6 +17,7 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.sql.Connection;
@@ -25,70 +27,143 @@ import java.sql.SQLException;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 
+import javax.swing.JTextField;
+
+import org.w3c.dom.css.ElementCSSInlineStyle;
+
+import java.util.Hashtable;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public class ClientGUI extends Application {
+	
+	private String server, username;
+	private int port;
+	
+	private Client client;
+		
     public static void main(String[] args) {
         launch(args);
     }
     
+    void cleanup() {
+        // stop, reset
+    }
+    
+    
+    // show server select dialog
     @Override
-    public void start(Stage primaryStage) {
-    		primaryStage.setTitle("Chat Login");
-    		primaryStage.show();
-    		
-    		GridPane grid = new GridPane();
-    		grid.setAlignment(Pos.CENTER);
-    		grid.setHgap(10);
-    		grid.setVgap(10);
-    		grid.setPadding(new Insets(25, 25, 25, 25));
+    public void start(Stage serverStage) {
+    	serverStage.setTitle("Chat Setup");
+    	serverStage.show();
+		
+		GridPane grid = new GridPane();
+		grid.setAlignment(Pos.CENTER);
+		grid.setHgap(10);
+		grid.setVgap(10);
+		grid.setPadding(new Insets(25, 25, 25, 25));
 
-    		Scene scene = new Scene(grid, 300, 275);
-    		primaryStage.setScene(scene);
-    		
-    		Text scenetitle = new Text("Welcome");
-    		scenetitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
-    		grid.add(scenetitle, 0, 0, 2, 1);
+		Scene scene = new Scene(grid, 600, 500);
+		serverStage.setScene(scene);
+		
+		Text scenetitle = new Text("Enter Server Address");
+		scenetitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
+		grid.add(scenetitle, 0, 0, 2, 1);
 
-    		Label userName = new Label("User Name:");
-    		grid.add(userName, 0, 1);
+		Label serverLabel = new Label("Server:");
+		grid.add(serverLabel, 0, 1);
 
-    		TextField userTextField = new TextField();
-    		grid.add(userTextField, 1, 1);
+		TextField serverTextField = new TextField();
+		grid.add(serverTextField, 1, 1);
+		
+		Label portLabel = new Label("port:");
+		grid.add(portLabel, 0, 2);
 
-    		Label pw = new Label("Password:");
-    		grid.add(pw, 0, 2);
-
-    		PasswordField passField = new PasswordField();
-    		grid.add(passField, 1, 2);
-    		
-    		Button SignInbtn = new Button("Sign in");
-    		HBox hbBtn = new HBox(10);
-    		hbBtn.setAlignment(Pos.BOTTOM_RIGHT);
-    		hbBtn.getChildren().add(SignInbtn);
-    		grid.add(hbBtn, 1, 4);
-    		
-    		final Text actiontarget = new Text();
-            grid.add(actiontarget, 1, 6);
+		TextField portTextField = new TextField("8000");
+		grid.add(portTextField, 1, 2);
+		
+		Button ConnectToServerbtn = new Button("Connect");
+		HBox hbBtn = new HBox(10);
+		hbBtn.setAlignment(Pos.BOTTOM_RIGHT);
+		hbBtn.getChildren().add(ConnectToServerbtn);
+		grid.add(hbBtn, 1, 4);
+		
+		final Text actiontarget = new Text();
+        grid.add(actiontarget, 1, 6);
         
             
-        SignInbtn.setOnAction(new EventHandler<ActionEvent>() { 
+        ConnectToServerbtn.setOnAction(new EventHandler<ActionEvent>() {
+        @Override
+            public void handle(ActionEvent e) {
+        		server = serverTextField.getText().trim();
+    			port = Integer.parseInt(portTextField.getText().trim());
+        		loginStage(serverStage);
+            }
+        });
+    }
+    
+    
+    //show login dialog
+	void loginStage(Stage loginStage) {
+    	loginStage.setTitle("Chat Login");
+    	loginStage.show();
+		
+		GridPane grid = new GridPane();
+		grid.setAlignment(Pos.CENTER);
+		grid.setHgap(10);
+		grid.setVgap(10);
+		grid.setPadding(new Insets(25, 25, 25, 25));
+
+		Scene scene = new Scene(grid, 600, 500);
+		loginStage.setScene(scene);
+		
+		Text scenetitle = new Text("Login To: "+server);
+		scenetitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
+		grid.add(scenetitle, 0, 0, 2, 1);
+
+		Label userName = new Label("User Name:");
+		grid.add(userName, 0, 1);
+
+		TextField userTextField = new TextField();
+		grid.add(userTextField, 1, 1);
+
+		Label pw = new Label("Password:");
+		grid.add(pw, 0, 2);
+
+		PasswordField passField = new PasswordField();
+		grid.add(passField, 1, 2);
+		
+		Button SignInbtn = new Button("Sign in");
+		HBox hbBtn = new HBox(10);
+		hbBtn.setAlignment(Pos.BOTTOM_RIGHT);
+		hbBtn.getChildren().add(SignInbtn);
+		grid.add(hbBtn, 1, 4);
+		
+		final Text actiontarget = new Text();
+        grid.add(actiontarget, 1, 6);
+
+        
+        SignInbtn.setOnAction(new EventHandler<ActionEvent>() {
         @Override
             public void handle(ActionEvent e) {
 
 	        		try{
 	        			Class.forName("com.mysql.jdbc.Driver");
 
-	        			Connection con=DriverManager.getConnection("jdbc:mysql://trowlink.com:3306/JavaChat?autoReconnect=true&useSSL=false","chat","7xsVuPeF1rCQOeo2");
+	        			Connection con=DriverManager.getConnection("jdbc:mysql://"+server+":3306/JavaChat?autoReconnect=true&useSSL=false","chat","7xsVuPeF1rCQOeo2");
 	        			//here sonoo is the database name, root is the username and root is the password
 	        			Statement stmt=con.createStatement();
 	        			
-	        	        final byte[] authBytes = passField.getText().getBytes(StandardCharsets.UTF_8);
-	        	        final String encoded = Base64.getEncoder().encodeToString(authBytes);
+	        	        final String encodedPassword = Decrypt(passField.getText().trim());
 	        			
-	        			ResultSet result = stmt.executeQuery("select * from users where user='"+userTextField.getText()+"' AND pass='"+encoded+"'");
+	        			ResultSet result = stmt.executeQuery("select * from users where user='"+userTextField.getText().trim()+"' AND pass='"+encodedPassword+"'");
 	        			if(result.next()){
-	        				System.out.println(result.getInt(1)+"  "+result.getString(2)+"  '"+result.getString(3)+"' = '"+encoded+"'");
+	        				//System.out.println(result.getInt(1)+"  "+result.getString(2)+"  '"+result.getString(3)+"' = '"+encoded+"'");
+	        				username = userTextField.getText().trim();
 	        				actiontarget.setFill(Color.BLUE);
 	        				actiontarget.setText("Login Successful!");
+	        			    cleanup();
+	        			    initChat(loginStage);
         			    } else {
         					actiontarget.setFill(Color.FIREBRICK);
 	        				actiontarget.setText("Invalid login.");
@@ -100,6 +175,9 @@ public class ClientGUI extends Application {
         				if(e1.getMessage().contains("empty result set")) {
             				actiontarget.setFill(Color.FIREBRICK);
             				actiontarget.setText("Invalid login.");
+        				} else if(e1.getMessage().contains("Could not create connection to database server")) {
+            				actiontarget.setFill(Color.FIREBRICK);
+            				actiontarget.setText("Could not connect to server.");
         				} else {
             				actiontarget.setFill(Color.FIREBRICK);
             				actiontarget.setText("Error while processing request.");
@@ -109,7 +187,54 @@ public class ClientGUI extends Application {
         });
     }
     
-    public void login() {
+    void initChat(Stage chatStage) {
+    	
+    	client = new Client(server, port, username, this);
+    	
+    	chatStage.setTitle("Chat");
+    	chatStage.show();
+		
+		GridPane grid = new GridPane();
+		grid.setAlignment(Pos.CENTER);
+		grid.setHgap(10);
+		grid.setVgap(10);
+		grid.setPadding(new Insets(25, 25, 25, 25));
 
-	}
+		Scene scene = new Scene(grid, 600, 300);
+		chatStage.setScene(scene);
+		
+		Text scenetitle = new Text("Chat");
+		scenetitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
+		grid.add(scenetitle, 0, 0);
+		
+		TextArea chatArea = new TextArea();
+		grid.add(chatArea, 1, 1);
+    	
+    }
+    
+    
+    // decrypts the password for database
+    public String Decrypt(String text) throws NoSuchAlgorithmException {
+    	String salt = "nb9af3uobu80ag87bpfu4iwef";
+    	
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        md.update((text+salt).getBytes());
+
+        byte byteData[] = md.digest();
+
+        //convert the byte to hex format method 1
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < byteData.length; i++) {
+         sb.append(Integer.toString((byteData[i] & 0xff) + 0x100, 16).substring(1));
+        }
+
+        //convert the byte to hex format method 2
+        StringBuffer hexString = new StringBuffer();
+    	for (int i=0;i<byteData.length;i++) {
+    		String hex=Integer.toHexString(0xff & byteData[i]);
+   	     	if(hex.length()==1) hexString.append('0');
+   	     	hexString.append(hex);
+    	}
+    	return hexString.toString();
+    }
 }
