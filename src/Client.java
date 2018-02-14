@@ -2,11 +2,6 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 import java.io.IOException;
-import java.awt.*;
-import java.awt.TrayIcon.MessageType;
-import java.net.MalformedURLException;
-
-import org.controlsfx.control.*;
 
 /*
  * The Client that can be run both as a console or a GUI
