@@ -1,4 +1,5 @@
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
@@ -10,8 +11,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ListView;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
+import javafx.scene.control.CheckBox;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
@@ -19,12 +19,19 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+
+import org.apache.commons.io.FileUtils;
+import org.controlsfx.control.Notifications;
 
 import java.sql.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import javax.swing.ImageIcon;
+import java.util.prefs.Preferences;
+import java.io.File;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -38,43 +45,36 @@ public class ClientGUI extends Application {
 	public ListView<String> listView = new ListView<String>();
 	
 	private Client client;
-	//private Image icon = Image("res/icon.png");
-
-	//  icon - https://stackoverflow.com/questions/10121991/javafx-application-icon
-	//  javafx is completely different from just java we are using javafx cause its better
+	
+	//  app prefs - https://stackoverflow.com/questions/4017137/how-do-i-save-preference-user-settings-in-java
+	public Preferences prefs = Preferences.userNodeForPackage(ClientGUI.class);
+	
+	// detech OS
+	private static String OS = System.getProperty("os.name").toLowerCase();
 	
     void cleanup() {
         // stop, reset  -  cleans up window
     }
-    
-    // show server select dialog
+
+    //  show server select dialog
     @Override
     public void start(Stage serverStage) { // the stage name for each view is here serverStage 
-    	// there is a diffrent stage name for each part of the app
-    	// basicly javafx is simpler that java
-    	
-    		connected = false;
-    	
-	    	serverStage.setTitle("Chat Setup");
-	    	serverStage.show();
-	    	serverStage.getIcons().add(new Image(this.getClass().getResourceAsStream("res/icon64.png"))); //  this works but not the "res/icon.png"
-	    	
-	    	// dock icon mac os
-	    	try {
-		    	//com.apple.eawt.Application macApp = com.apple.eawt.Application.getApplication();
-		    	//macApp.setDockIconImage (new ImageIcon (getClass ().getResource ("res/icon256.png")).getImage ());
-		} catch (Exception e) {
-			// TODO: handle exception
-		}
-	    	
-	    	
+	    	// there is a diffrent stage name for each part of the app
+	    	// basicly javafx is simpler that java
+	    	    	
+		connected = false;
+	
+    	serverStage.setTitle("Chat Setup");
+    	serverStage.show();
+    	serverStage.getIcons().add(new Image(this.getClass().getResourceAsStream("res/icon64.png")));
+		
 		GridPane grid = new GridPane();
 		grid.setAlignment(Pos.CENTER);
 		grid.setHgap(10);
 		grid.setVgap(10);
 		grid.setPadding(new Insets(25, 25, 25, 25));
-
-		Scene scene = new Scene(grid, 600, 500);
+		
+		Scene scene = new Scene(grid, 600, 300);
 		serverStage.setScene(scene);
 		
 		Text scenetitle = new Text("Enter Server Address");
@@ -84,13 +84,13 @@ public class ClientGUI extends Application {
 		Label serverLabel = new Label("Server:");
 		grid.add(serverLabel, 0, 1);
 
-		TextField serverTextField = new TextField("trowlink.com");
+		TextField serverTextField = new TextField(prefs.get("server_address", ""));
 		grid.add(serverTextField, 1, 1);
 		
 		Label portLabel = new Label("port:");
 		grid.add(portLabel, 0, 2);
 
-		TextField portTextField = new TextField("8000");
+		TextField portTextField = new TextField(prefs.get("server_port", ""));
 		grid.add(portTextField, 1, 2);
 		
 		Button ConnectToServerbtn = new Button("Connect");
@@ -108,6 +108,9 @@ public class ClientGUI extends Application {
             public void handle(ActionEvent e) {
         		server = serverTextField.getText().trim();
     			port = Integer.parseInt(portTextField.getText().trim());
+    			// set prefs
+    			prefs.put("server_address", server);
+    			prefs.put("server_port", Integer.toString(port));
         		loginStage(serverStage);
             }
         });
@@ -125,7 +128,7 @@ public class ClientGUI extends Application {
 		grid.setVgap(10);
 		grid.setPadding(new Insets(25, 25, 25, 25));
 
-		Scene scene = new Scene(grid, 600, 500);
+		Scene scene = new Scene(grid, 600, 300);
 		loginStage.setScene(scene);
 		
 		Text scenetitle = new Text("Login To: "+server);
@@ -135,25 +138,28 @@ public class ClientGUI extends Application {
 		Label userName = new Label("User Name:");
 		grid.add(userName, 0, 1);
 
-		TextField userTextField = new TextField("test");
+		TextField userTextField = new TextField(prefs.get("username", ""));
 		grid.add(userTextField, 1, 1);
 
 		Label pw = new Label("Password:");
 		grid.add(pw, 0, 2);
 
 		PasswordField passField = new PasswordField();
-		passField.setText("12345678");
+		passField.setText(prefs.get("password", ""));
 		grid.add(passField, 1, 2);
 		
+		
+		CheckBox rememberMe = new CheckBox("Remember Me");
+		rememberMe.setSelected(true);
 		Button SignInbtn = new Button("Sign in");
 		HBox hbBtn = new HBox(10);
 		hbBtn.setAlignment(Pos.BOTTOM_RIGHT);
 		hbBtn.getChildren().add(SignInbtn);
+		hbBtn.getChildren().add(rememberMe);
 		grid.add(hbBtn, 1, 4);
 		
 		final Text actiontarget = new Text();
         grid.add(actiontarget, 1, 6);
-
         
         SignInbtn.setOnAction(new EventHandler<ActionEvent>() {
         @Override
@@ -174,6 +180,15 @@ public class ClientGUI extends Application {
 	        				username = userTextField.getText().trim();
 	        				actiontarget.setFill(Color.BLUE);
 	        				actiontarget.setText("Login Successful!");
+	        				// put remeber stuff here this is the successful login spot
+	        				
+	        				if(rememberMe.isSelected()) {
+		            			prefs.put("username", userTextField.getText().trim());
+		            			prefs.put("password", passField.getText().trim());
+	        				}
+	        				
+	        				
+	        				
 	        			    cleanup();
 	        			    initChat(loginStage);
         			    } else {
@@ -201,8 +216,8 @@ public class ClientGUI extends Application {
     
     void initChat(Stage chatStage) {
     	
-	    	chatStage.setTitle("Chat: "+server+":"+port);
-	    	chatStage.show();
+    	chatStage.setTitle("Chat: "+server+":"+port);
+    	chatStage.show();
 		
 		GridPane grid = new GridPane();
 		grid.setAlignment(Pos.CENTER);
@@ -214,19 +229,60 @@ public class ClientGUI extends Application {
 		chatStage.setScene(scene);
 		
 		Text scenetitle = new Text("Chat: "+server+":"+port);
+		Button clearButton = new Button("Clear");
+		clearButton.setAlignment(Pos.CENTER_RIGHT);
 		scenetitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
-		grid.add(scenetitle, 0, 0);
+		HBox titleSection = new HBox(10);
+		titleSection.setAlignment(Pos.CENTER_LEFT);
+		titleSection.getChildren().add(scenetitle);
+		titleSection.getChildren().add(clearButton);
+		grid.add(titleSection, 0, 0);
     	
     		try {
     			client = new Client(server, port, username, this);
     			if(client.start()) {
     				connected = true;
     				
+        	    	client.sendMessage(new ChatMessage(ChatMessage.WHOISIN, ""));
+
+        	    	Button Disconnectbtn = new Button("Disconnect");
+        	    	Button Settingsbtn = new Button("Settings");
+    				HBox DisSetSection = new HBox(10);
+    				DisSetSection.setAlignment(Pos.CENTER_LEFT);
+    				DisSetSection.getChildren().add(Disconnectbtn);
+    				DisSetSection.getChildren().add(Settingsbtn);
+    				grid.add(DisSetSection, 1, 0);
+    				
+    				Disconnectbtn.setOnAction(new EventHandler<ActionEvent>() {
+    			        @Override
+    			            public void handle(ActionEvent e) {
+    			        		if(connected) {
+    			        			client.sendMessage(new ChatMessage(ChatMessage.LOGOUT, ""));
+    			        			Disconnectbtn.setText("Connect");
+    			        			listView.getItems().clear();
+    			        			connected = false;
+    			        		} else if (!connected) {
+    			        			reconnectToServer();
+    			        			Disconnectbtn.setText("Disconnect");
+    			        			connected = true;
+    			        	    	client.sendMessage(new ChatMessage(ChatMessage.WHOISIN, ""));
+    			        		}
+    			        }
+    				});
+    				
+    				Settingsbtn.setOnAction(new EventHandler<ActionEvent>() {
+    			        @Override
+			            public void handle(ActionEvent e) {
+    			        	new Settings().start(new Stage());
+    			        }
+    				});
+    				
     				chatArea.setEditable(false);
     				chatArea.setWrapText(true);
     				grid.add(chatArea, 0, 1);
     				
     				listView.setEditable(false);
+    				listView.setSelectionModel(null);
     				grid.add(listView, 1, 1);
     				
     				TextField msgTextField = new TextField();
@@ -235,23 +291,59 @@ public class ClientGUI extends Application {
     				
     				msgTextField.setOnAction(new EventHandler<ActionEvent>() {
     			        @Override
-    			            public void handle(ActionEvent e) {
+			            public void handle(ActionEvent e) {
+    			        	if(!msgTextField.getText().equals("")) {
     			        		client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, msgTextField.getText()));
     			        		msgTextField.setText("");
+    			        	}
+    			        }
+    				});
+
+    				Button sendMsgbtn = new Button("Send");
+    				Button attachFilebtn = new Button("File");
+    				HBox btns = new HBox(10);
+    				btns.setAlignment(Pos.CENTER_LEFT);
+    				btns.getChildren().add(sendMsgbtn);
+    				btns.getChildren().add(attachFilebtn);
+    				grid.add(btns, 1, 2);
+    				
+    				sendMsgbtn.setOnAction(new EventHandler<ActionEvent>() {
+    			        @Override
+			            public void handle(ActionEvent e) {
+    			        	if(!msgTextField.getText().equals("")) {
+    			        		client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, msgTextField.getText()));
+    			        		msgTextField.setText("");
+    			        	}
     			        }
     				});
     				
-    				Button SendMsgbtn = new Button("Send");
-    				HBox sdBtn = new HBox(10);
-    				sdBtn.setAlignment(Pos.CENTER_LEFT);
-    				sdBtn.getChildren().add(SendMsgbtn);
-    				grid.add(sdBtn, 1, 2);
-    						
-    				SendMsgbtn.setOnAction(new EventHandler<ActionEvent>() {
+    				attachFilebtn.setOnAction(new EventHandler<ActionEvent>() {
     			        @Override
-    			            public void handle(ActionEvent e) {
-    			        		client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, msgTextField.getText()));
-    			        		msgTextField.setText("");
+			            public void handle(ActionEvent e) {
+    			        	
+    			        	FileChooser fileChooser = new FileChooser();
+	    					fileChooser.setTitle("Select File");
+    			        	File selectedFile = fileChooser.showOpenDialog(null);
+    			        	
+    			        	if (selectedFile != null) {
+	    					    ImageView icon = new ImageView(new Image(this.getClass().getResourceAsStream("res/icon64.png")));
+	    				        Notifications.create().title("Chat: "+server+":"+port).text("File selected: " + selectedFile.getName()).graphic(icon).show();
+	    				        try {
+									SendFile(selectedFile);
+								} catch (IOException e1) {
+									Notifications.create().title("Chat: "+server+":"+port).text("Error Sending File: " + selectedFile.getName()).showError();
+								}
+    			        	}
+    			        }
+    				});
+
+
+    				
+    				clearButton.setOnAction(new EventHandler<ActionEvent>() {
+    			        @Override
+			            public void handle(ActionEvent e) {
+			        		chatArea.clear();
+			        		chatArea.appendText("Cleared at: " + new Timestamp(System.currentTimeMillis())+ "\n");
     			        }
     				});
     			} else {
@@ -265,8 +357,8 @@ public class ClientGUI extends Application {
     				
     				Reconnectbtn.setOnAction(new EventHandler<ActionEvent>() {
     			        @Override
-    			            public void handle(ActionEvent e) {
-    			        			initChat(chatStage);
+			            public void handle(ActionEvent e) {
+		        			initChat(chatStage);
     			        }
     				});
     			}
@@ -283,33 +375,128 @@ public class ClientGUI extends Application {
 			
 			Reconnectbtn.setOnAction(new EventHandler<ActionEvent>() {
 		        @Override
-		            public void handle(ActionEvent e) {
-		        			initChat(chatStage);
+	            public void handle(ActionEvent e) {
+        			initChat(chatStage);
 		        }
 			});
 		}
     }
     
     public void append(String msg) {
-    		try {
-    			if(msg.contains("ServerAddToUserList:")) {
-    				//listView.getItems().add(1, "user");
-    			} else {
-            		chatArea.appendText(msg);
+		try {
+			if(msg.contains("ServerResetUserList:")) {
+				Platform.runLater(new Runnable() {
+    			    @Override
+    			    public void run() {
+    			    	listView.getItems().clear();
+    			    }
+    			});
+			} else {
+				if(msg.contains("ServerAddToUserList:")) {
+					Platform.runLater(new Runnable() {
+	    			    @Override
+	    			    public void run() {
+	    					listView.getItems().add(msg.replace("ServerAddToUserList:", ""));
+	    			    }
+	    			});
+				} else if(msg.contains("|ClintSendFile|")) {
+					//System.out.println(msg);
+					
+					String s = new String(msg);
+					
+					String[] separatedMsg = s.split("\\|");
+
+					String userAndTime = separatedMsg[0];
+					String fileName = separatedMsg[2];
+					String fileEncoded = msg.replace(userAndTime + "|ClintSendFile|" + fileName + "|", "");
+					 
+					System.out.println("Saving: "+ fileName);
+					
+					byte[] encoded = fileEncoded.getBytes("ISO-8859-1");
+
+					if(!msg.contains(username)) {
+						//  save file as
+						Platform.runLater(new Runnable() {
+			    			    @Override
+			    			    public void run() {
+			    					FileChooser fileChooser = new FileChooser();
+			    					fileChooser.setTitle("Save File");
+			    					if(isWindows()) {
+				    					File userDirectory = new File(System.getProperty("user.home")+"\\Downloads");
+				    					if(!userDirectory.canRead())
+				    					    userDirectory = new File("c:/");
+				    					fileChooser.setInitialDirectory(userDirectory);
+			    					}
+			    					
+			    					fileChooser.setInitialFileName(separatedMsg[2]);
+			    					File savedFile = fileChooser.showSaveDialog(null);
+		
+			    					if (savedFile != null) {
+		
+			    					    try {
+			    					    	FileUtils.writeByteArrayToFile(savedFile, encoded);
+			    					    }
+			    					    catch(IOException e) {
+			    						
+			    					        e.printStackTrace();
+			    					        Notifications.create().title("Chat: "+server+":"+port).text("An ERROR occurred while saving the file").showError();
+			    					        return;
+			    					    }
+			    					    ImageView icon = new ImageView(new Image(this.getClass().getResourceAsStream("res/icon64.png")));
+			    				        Notifications.create().title("Chat: "+server+":"+port).text("File saved: " + savedFile.toString()).graphic(icon).show();
+			    					}
+		    					}
+			    			});
+					}
+					
+					userAndTime=null;
+					fileName=null;
+					fileEncoded=null;
+				} else {
+					chatArea.appendText(msg);
+					if(!msg.contains(username)) {
+	        			Platform.runLater(new Runnable() {
+	        			    @Override
+	        			    public void run() {
+	        			    	ImageView icon = new ImageView(new Image(this.getClass().getResourceAsStream("res/icon64.png")));
+	        			    
+	        			    	Notifications.create().title("Chat: "+server+":"+port).text(msg).graphic(icon).show();
+	        			    }
+	        			});
+	        		}
+				}
 			}
 		} catch (Exception e) {
 			System.out.println(e);
 		}
 	}
     
+    private void reconnectToServer() {
+    	client = new Client(server, port, username, this);
+    	client.start();
+	}
+    
+    private void SendFile(File file) throws IOException {
+    	// convert file to byte array then to string to send to server
+		byte[] str = FileUtils.readFileToByteArray(file);
+		String decoded = new String(str, "ISO-8859-1");
+		client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, "|ClintSendFile|" + file.getName() + "|" + decoded));
+	}
+    
     public void connectionFailed() {
-    		chatArea.appendText("Connection to chat server failed");
+		chatArea.appendText("Connection to chat server failed");
+	}
+    
+	public static boolean isWindows() {
+
+		return (OS.indexOf("win") >= 0);
+
 	}
     
     // decrypts the password for database
     public String Decrypt(String text) throws NoSuchAlgorithmException {
     	
-    		String salt = "nb9af3uobu80ag87bpfu4iwef";
+		String salt = "nb9af3uobu80ag87bpfu4iwef";
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         md.update((text+salt).getBytes());
         byte byteData[] = md.digest();
@@ -329,4 +516,15 @@ public class ClientGUI extends Application {
 	    	}
 	    	return hexString.toString();
     }
+    
+    @Override
+    public void stop(){
+    	try {
+    		client.sendMessage(new ChatMessage(ChatMessage.LOGOUT, ""));
+		} catch (Exception e) {}
+    }
+    
+	public static void main(String[] args) {
+		launch(args);
+	}
 }

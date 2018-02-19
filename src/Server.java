@@ -18,8 +18,7 @@ public class Server {
 	// the port number to listen for connection
 	private int port;
 	// the boolean that will be turned of to stop the server
-	private boolean keepGoing;
-	
+	private boolean keepGoing;	
 
 	/*
 	 *  server constructor that receive the port to listen to for connection as parameter
@@ -39,6 +38,11 @@ public class Server {
 		// ArrayList for the Client list
 		al = new ArrayList<ClientThread>();
 	}
+	
+    public void sendToAll(String message){
+        for(ClientThread client : al)
+            client.writeMsg(message);
+    }
 	
 	public void start() {
 		keepGoing = true;
@@ -106,10 +110,22 @@ public class Server {
 	 */
 	private void display(String msg) {
 		String time = sdf.format(new Date()) + " " + msg;
-		if(sg == null)
-			System.out.println(time);
-		else
-			sg.appendEvent(time + "\n");
+
+		if(!msg.contains("ClintSendFile|")) {
+			if(sg == null)
+				System.out.println(time);
+			else
+				sg.appendEvent(time + "\n");
+		} else {
+			String s = new String(msg);
+			String[] separatedMsg = s.split("\\|");
+			String userAndTime = separatedMsg[0];
+			
+			if(sg == null)
+				System.out.println(userAndTime + "Sent File: " + separatedMsg[2]);
+			else
+				sg.appendEvent(userAndTime + "Sent File: " + separatedMsg[2] + "\n");
+		}
 	}
 	/*
 	 *  to broadcast a message to all Clients
@@ -119,10 +135,30 @@ public class Server {
 		String time = sdf.format(new Date());
 		String messageLf = time + " " + message + "\n";
 		// display message on console or GUI
-		if(sg == null)
-			System.out.print(messageLf);
-		else
-			sg.appendRoom(messageLf);     // append in the room window
+		if(!message.contains("ClintSendFile|")) {
+			if(sg == null)
+				System.out.print(messageLf);
+			else
+				sg.appendRoom(messageLf);     // append in the room window
+		} else {
+			String s = new String(messageLf);
+			String[] separatedMsg = s.split("\\|");
+			String userAndTime = separatedMsg[0];
+			
+			if(sg == null)
+				System.out.println(userAndTime + "Sent File: " + separatedMsg[2]);
+			else
+				sg.appendEvent(userAndTime + "Sent File: " + separatedMsg[2] + "\n");
+			
+			for(int i = al.size(); --i >= 0;) {
+				ClientThread ct = al.get(i);
+				// try to write to the Client if it fails remove it from the list
+				if(!ct.writeMsg(userAndTime + "Sent File: " + separatedMsg[2] + "\n")) {
+					al.remove(i);
+					display("Disconnected Client " + ct.username + " removed from list.");
+				}
+			}
+		}
 		
 		// we loop in reverse order in case we would have to remove a Client
 		// because it has disconnected
@@ -148,7 +184,7 @@ public class Server {
 			}
 		}
 	}
-	
+
 	/*
 	 *  To run as a console application just open a console window and: 
 	 * > java Server
@@ -210,6 +246,13 @@ public class Server {
 				// read the username
 				username = (String) sInput.readObject();
 				display(username + " just connected.");
+				
+				// scan al the users connected
+				sendToAll("ServerResetUserList:");
+				for(int i = 0; i < al.size(); ++i) {
+					ClientThread ct = al.get(i);
+					sendToAll("ServerAddToUserList:" + ct.username);
+				}
 			}
 			catch (IOException e) {
 				display("Exception creating new Input/output Streams: " + e);
@@ -227,6 +270,7 @@ public class Server {
 			// to loop until LOGOUT
 			boolean keepGoing = true;
 			while(keepGoing) {
+				
 				// read a String (which is an object)
 				try {
 					cm = (ChatMessage) sInput.readObject();
@@ -252,11 +296,11 @@ public class Server {
 					keepGoing = false;
 					break;
 				case ChatMessage.WHOISIN:
-					writeMsg("List of the users connected at " + sdf.format(new Date()) + "\n");
 					// scan al the users connected
+					sendToAll("ServerResetUserList:");
 					for(int i = 0; i < al.size(); ++i) {
 						ClientThread ct = al.get(i);
-						writeMsg((i+1) + ") " + ct.username + " since " + ct.date);
+						sendToAll("ServerAddToUserList:" + ct.username);
 					}
 					break;
 				}
@@ -264,11 +308,18 @@ public class Server {
 			// remove myself from the arrayList containing the list of the
 			// connected Clients
 			remove(id);
+			// scan al the users connected
+			sendToAll("ServerResetUserList:");
+			for(int i = 0; i < al.size(); ++i) {
+				ClientThread ct = al.get(i);
+				sendToAll("ServerAddToUserList:" + ct.username);
+			}
 			close();
 		}
 		
 		// try to close everything
 		private void close() {
+			System.out.println("Closed Conection" );
 			// try to close the connection
 			try {
 				if(sOutput != null) sOutput.close();
@@ -287,7 +338,7 @@ public class Server {
 		/*
 		 * Write a String to the Client output stream
 		 */
-		private boolean writeMsg(String msg) {
+		public boolean writeMsg(String msg) {
 			// if Client is still connected send the message to it
 			if(!socket.isConnected()) {
 				close();
